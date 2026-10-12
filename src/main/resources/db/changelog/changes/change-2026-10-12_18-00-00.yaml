@@ -1,0 +1,57 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1791820800-1
+      author: anjapetkovic
+      changes:
+        - createSequence:
+            cacheSize: 1
+            cycle: false
+            dataType: bigint
+            incrementBy: 50
+            maxValue: 9223372036854775807
+            minValue: 1
+            sequenceName: coar_notify_inbox_seq
+            startValue: 1
+  - changeSet:
+      id: 1791820800-2
+      author: anjapetkovic
+      changes:
+        - createTable:
+            tableName: coar_notify_inbox
+            columns:
+              - column:
+                  name: id
+                  type: INTEGER
+                  constraints:
+                    nullable: false
+                    primaryKey: true
+                    primaryKeyName: coar_notify_inbox_pkey
+              - column: { name: created_at, type: TIMESTAMP WITHOUT TIME ZONE }
+              - column: { name: last_modification, type: TIMESTAMP WITHOUT TIME ZONE }
+              - column: { name: created_by, type: VARCHAR(255) }
+              - column: { name: updated_by, type: VARCHAR(255) }
+              - column: { name: admin_note, type: VARCHAR(2000) }
+              - column:
+                  name: deleted
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints: { nullable: false }
+              - column: { name: import_source, type: VARCHAR(255) }
+              - column:
+                  name: private_info
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints: { nullable: false }
+              - column: { name: notification_id, type: VARCHAR(255), constraints: { nullable: false } }
+              - column: { name: type, type: VARCHAR(255), constraints: { nullable: false } }
+              - column: { name: in_reply_to, type: VARCHAR(255) }
+              - column: { name: origin_id, type: VARCHAR(255), constraints: { nullable: false } }
+              - column: { name: raw_payload, type: TEXT, constraints: { nullable: false } }
+              - column: { name: received_at, type: TIMESTAMP WITH TIME ZONE, constraints: { nullable: false } }
+              - column: { name: remote_address, type: VARCHAR(255) }
+              - column: { name: processed, type: BOOLEAN, constraints: { nullable: false } }
+              - column: { name: processing_note, type: VARCHAR(2000) }
+        - addUniqueConstraint:
+            tableName: coar_notify_inbox
+            columnNames: notification_id
+            constraintName: uk_coar_inbox_notification

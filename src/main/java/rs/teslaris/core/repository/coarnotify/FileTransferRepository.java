@@ -3,6 +3,7 @@ package rs.teslaris.core.repository.coarnotify;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -11,6 +12,8 @@ import rs.teslaris.core.model.coarnotify.FileTransferStatus;
 
 @Repository
 public interface FileTransferRepository extends JpaRepository<FileTransfer, Integer> {
+
+    Optional<FileTransfer> findByNotificationId(String notificationId);
 
     @Query("SELECT t FROM FileTransfer t WHERE t.documentFile.id = :documentFileId ORDER BY t.id DESC")
     List<FileTransfer> findAllForDocumentFile(Integer documentFileId);

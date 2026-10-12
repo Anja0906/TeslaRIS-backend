@@ -217,6 +217,10 @@ public class SecurityConfiguration {
                 .requestMatchers(HttpMethod.GET, "/api/file/image/{personId}").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/file/raw-image/{personId}").permitAll()
 
+                // COAR NOTIFY
+                .requestMatchers(HttpMethod.POST, "/api/coar-notify/inbox").permitAll()
+                .requestMatchers(HttpMethod.OPTIONS, "/api/coar-notify/inbox").permitAll()
+
                 // ERROR
                 .requestMatchers("/error").permitAll()
 
