@@ -159,6 +159,7 @@ public class DbInitializer implements ApplicationRunner {
         var listAssessmentClassifications = new Privilege("LIST_ASSESSMENT_CLASSIFICATIONS");
         var updateBrandingInformation = new Privilege("UPDATE_BRANDING_INFORMATION");
         var manageApiKeys = new Privilege("MANAGE_API_KEYS");
+        var transferDocumentFiles = new Privilege("TRANSFER_DOCUMENT_FILES");
         var manageThesisAttachments = new Privilege("MANAGE_THESIS_ATTACHMENTS");
         var deleteThesisAttachments = new Privilege("DELETE_THESIS_ATTACHMENTS");
         var putThesisOnPublicReview = new Privilege("PUT_THESIS_ON_PUBLIC_REVIEW");
@@ -268,7 +269,8 @@ public class DbInitializer implements ApplicationRunner {
                 editEventAssessmentClassification, editPublicationSeriesAssessmentClassifications,
                 assessDocument, updateCommission, editDocumentAssessment, scheduleReportGeneration,
                 editAssessmentResearchArea, downloadReports, listAssessmentClassifications,
-                updateBrandingInformation, manageApiKeys, manageThesisAttachments, createJournal,
+                updateBrandingInformation, manageApiKeys, transferDocumentFiles,
+                manageThesisAttachments, createJournal,
                 editEmploymentInstitution, archiveThesis, unarchiveThesis, performThesisReport,
                 putThesisOnPublicReview, deleteThesisAttachments, removeThesisFromPublicReview,
                 addToPromotion, removeFromPromotion, addToRegistryBook, deleteUserAccount,
@@ -317,7 +319,8 @@ public class DbInitializer implements ApplicationRunner {
                 editPublicationSeriesAssessmentClassifications, assessDocument, updateCommission,
                 editDocumentAssessment, editAssessmentResearchArea, scheduleReportGeneration,
                 downloadReports, listAssessmentClassifications, updateBrandingInformation,
-                manageApiKeys, manageThesisAttachments, putThesisOnPublicReview, managePromotions,
+                manageApiKeys, transferDocumentFiles, manageThesisAttachments,
+                putThesisOnPublicReview, managePromotions,
                 deleteThesisAttachments, removeThesisFromPublicReview, archiveThesis,
                 unarchiveThesis, performThesisReport, addToPromotion, generateNewEmployeePassword,
                 removeFromPromotion, addToRegistryBook, updateRegistryBook, removeFromRegistryBook,

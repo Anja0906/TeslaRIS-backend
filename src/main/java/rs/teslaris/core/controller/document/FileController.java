@@ -23,6 +23,7 @@ import org.apache.tika.Tika;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +44,8 @@ import rs.teslaris.core.model.document.DocumentFile;
 import rs.teslaris.core.model.document.ResourceType;
 import rs.teslaris.core.model.document.Thesis;
 import rs.teslaris.core.model.user.UserRole;
+import rs.teslaris.core.service.interfaces.coarnotify.CoarNotifyTransferService;
+import rs.teslaris.core.service.interfaces.coarnotify.CoarNotifyTransferService.DownloadAuthorisation;
 import rs.teslaris.core.service.interfaces.document.DocumentDownloadTracker;
 import rs.teslaris.core.service.interfaces.document.DocumentFileService;
 import rs.teslaris.core.service.interfaces.document.DocumentLookupService;
@@ -83,6 +86,8 @@ public class FileController {
 
     private final DocumentLookupService documentLookupService;
 
+    private final CoarNotifyTransferService coarNotifyTransferService;
+
 
     @GetMapping("/{filename}")
     @ResponseBody
@@ -90,9 +95,15 @@ public class FileController {
         HttpServletRequest request,
         @PathVariable String filename,
         @RequestParam(value = "inline", defaultValue = "false") Boolean inline,
+        @RequestParam(value = "transferToken", required = false) String transferToken,
+        @RequestParam(value = "expires", required = false) Long expires,
         @RequestHeader(value = "Authorization", required = false) String bearerToken,
         @CookieValue(value = "jwt-security-fingerprint", required = false) String fingerprintCookie)
         throws IOException {
+
+        if (Objects.nonNull(transferToken)) {
+            return serveTransferDownload(request, filename, transferToken, expires);
+        }
 
         var file = fileService.loadAsResource(filename);
         var documentFile = documentFileService.getDocumentByServerFilename(filename);
@@ -215,6 +226,35 @@ public class FileController {
         return ResponseEntity.ok()
             .headers(headers)
             .body(body);
+    }
+
+    private ResponseEntity<StreamingResponseBody> serveTransferDownload(HttpServletRequest request,
+                                                                        String filename,
+                                                                        String transferToken,
+                                                                        Long expires)
+        throws IOException {
+        if (Objects.isNull(expires)) {
+            return handleUnauthorisedUser(request);
+        }
+
+        var authorisation = coarNotifyTransferService.authoriseDownload(filename, transferToken,
+            expires, request.getRemoteAddr());
+        if (authorisation.result() == DownloadAuthorisation.Result.INVALID) {
+            return handleUnauthorisedUser(request);
+        }
+        if (authorisation.result() == DownloadAuthorisation.Result.EXPIRED) {
+            return ResponseEntity.status(HttpStatus.GONE).build();
+        }
+
+        var file = fileService.loadAsResource(filename);
+        var documentFile = documentFileService.getDocumentByServerFilename(filename);
+        var headers = getFileHeaders(file, false, null);
+        headers.set("Repr-Digest", "sha-256=:" + authorisation.sha256() + ":");
+        FairSignpostingL1Utility.addHeadersForDocumentFileItems(headers, documentFile);
+
+        return ResponseEntity.ok()
+            .headers(headers)
+            .body(StreamingUtil.createStreamingBodyFromS3Response(file));
     }
 
     private ResponseEntity<StreamingResponseBody> handleUnauthorisedUser(

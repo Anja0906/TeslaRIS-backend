@@ -165,13 +165,23 @@ public class FairSignpostingL1Utility {
         headers.add(HttpHeaders.LINK, "<https://schema.org/item>; rel=\"type\"");
         if (Objects.nonNull(documentFile.getDocument())) {
             headers.add(HttpHeaders.LINK,
-                "<" + frontendUrl + defaultLocale + "/scientific-results/" +
-                    deduceDocumentType(documentFile.getDocument()) + "/" +
-                    documentFile.getDocument().getId() +
+                "<" + getLandingPageUrl(documentFile) +
                     "> ; rel=\"collection\" ; type=\"text/html\"");
         }
 
         addLinksetReferences(headers, "/api/file", documentFile.getServerFilename());
+    }
+
+    public static String getLandingPageUrl(DocumentFile documentFile) {
+        if (Objects.nonNull(documentFile.getDocument())) {
+            return frontendUrl + defaultLocale + "/scientific-results/" +
+                deduceDocumentType(documentFile.getDocument()) + "/" +
+                documentFile.getDocument().getId();
+        }
+        if (Objects.nonNull(documentFile.getPerson())) {
+            return frontendUrl + defaultLocale + "/persons/" + documentFile.getPerson().getId();
+        }
+        return null;
     }
 
     public static void addHeadersForMetadataFormats(HttpHeaders headers, Integer thesisId) {

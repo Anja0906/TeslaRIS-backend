@@ -1,0 +1,95 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1789812000-1
+      author: anjapetkovic
+      changes:
+        - createSequence:
+            cacheSize: 1
+            cycle: false
+            dataType: bigint
+            incrementBy: 50
+            maxValue: 9223372036854775807
+            minValue: 1
+            sequenceName: coar_notify_file_transfers_seq
+            startValue: 1
+  - changeSet:
+      id: 1789812000-2
+      author: anjapetkovic
+      changes:
+        - createTable:
+            tableName: coar_notify_file_transfers
+            columns:
+              - column:
+                  name: id
+                  type: INTEGER
+                  constraints:
+                    nullable: false
+                    primaryKey: true
+                    primaryKeyName: coar_notify_file_transfers_pkey
+              - column: { name: created_at, type: TIMESTAMP WITHOUT TIME ZONE }
+              - column: { name: last_modification, type: TIMESTAMP WITHOUT TIME ZONE }
+              - column: { name: created_by, type: VARCHAR(255) }
+              - column: { name: updated_by, type: VARCHAR(255) }
+              - column: { name: admin_note, type: VARCHAR(2000) }
+              - column:
+                  name: deleted
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints: { nullable: false }
+              - column: { name: import_source, type: VARCHAR(255) }
+              - column:
+                  name: private_info
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints: { nullable: false }
+              - column:
+                  name: document_file_id
+                  type: INTEGER
+                  constraints: { nullable: false }
+              - column:
+                  name: notification_id
+                  type: VARCHAR(255)
+                  constraints: { nullable: false }
+              - column: { name: target_id, type: VARCHAR(255), constraints: { nullable: false } }
+              - column: { name: target_inbox, type: VARCHAR(255), constraints: { nullable: false } }
+              - column: { name: status, type: VARCHAR(255), constraints: { nullable: false } }
+              - column: { name: attempts, type: INTEGER, constraints: { nullable: false } }
+              - column: { name: last_attempt_at, type: TIMESTAMP WITH TIME ZONE }
+              - column: { name: sha256, type: VARCHAR(255), constraints: { nullable: false } }
+              - column: { name: token_expires_at, type: TIMESTAMP WITH TIME ZONE, constraints: { nullable: false } }
+              - column: { name: remote_item_url, type: VARCHAR(255) }
+              - column: { name: remote_cite_as, type: VARCHAR(255) }
+              - column: { name: last_error, type: VARCHAR(2000) }
+              - column: { name: downloaded_at, type: TIMESTAMP WITH TIME ZONE }
+              - column: { name: downloaded_from_ip, type: VARCHAR(255) }
+        - addUniqueConstraint:
+            tableName: coar_notify_file_transfers
+            columnNames: notification_id
+            constraintName: idx_coar_transfer_notification
+        - createIndex:
+            tableName: coar_notify_file_transfers
+            indexName: idx_coar_transfer_status
+            columns:
+              - column: { name: status }
+              - column: { name: last_attempt_at }
+        - addForeignKeyConstraint:
+            baseTableName: coar_notify_file_transfers
+            baseColumnNames: document_file_id
+            referencedTableName: document_files
+            referencedColumnNames: id
+            constraintName: fk_coar_transfer_document_file
+  - changeSet:
+      id: 1789812000-3
+      author: anjapetkovic
+      changes:
+        - sql:
+            splitStatements: true
+            sql: |
+              INSERT INTO privileges (id, name, deleted, private_info, created_at, last_modification)
+              SELECT nextval('privileges_seq'), 'TRANSFER_DOCUMENT_FILES', false, false, now(), now()
+              WHERE NOT EXISTS (SELECT 1 FROM privileges WHERE name = 'TRANSFER_DOCUMENT_FILES');
+              INSERT INTO authority_privileges (authority_id, privilege_id)
+              SELECT a.id, p.id FROM authorities a, privileges p
+              WHERE a.name = 'ADMIN' AND p.name = 'TRANSFER_DOCUMENT_FILES'
+                AND NOT EXISTS (SELECT 1 FROM authority_privileges ap
+                                WHERE ap.authority_id = a.id AND ap.privilege_id = p.id);
