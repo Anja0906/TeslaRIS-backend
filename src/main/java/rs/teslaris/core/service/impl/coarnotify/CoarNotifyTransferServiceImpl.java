@@ -1,5 +1,6 @@
 package rs.teslaris.core.service.impl.coarnotify;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
@@ -31,6 +32,7 @@ import rs.teslaris.core.service.interfaces.coarnotify.TransferTokenService;
 import rs.teslaris.core.service.interfaces.document.DocumentFileService;
 import rs.teslaris.core.util.coarnotify.CoarNotifyPayloadBuilder;
 import rs.teslaris.core.util.coarnotify.CoarNotifyPayloadBuilder.IngestOffer;
+import rs.teslaris.core.util.coarnotify.TransferRetryPolicy;
 import rs.teslaris.core.util.exceptionhandling.exception.NotFoundException;
 import rs.teslaris.core.util.session.RestTemplateProvider;
 import rs.teslaris.core.util.signposting.FairSignpostingL1Utility;
@@ -43,6 +45,10 @@ public class CoarNotifyTransferServiceImpl implements CoarNotifyTransferService 
 
     private static final List<FileTransferStatus> IN_PROGRESS =
         List.of(FileTransferStatus.PENDING, FileTransferStatus.SENT);
+
+    private static final List<FileTransferStatus> NOT_ACCEPTED =
+        List.of(FileTransferStatus.PENDING, FileTransferStatus.SENT, FileTransferStatus.FAILED,
+            FileTransferStatus.REJECTED);
 
     private final FileTransferRepository fileTransferRepository;
 
@@ -79,6 +85,15 @@ public class CoarNotifyTransferServiceImpl implements CoarNotifyTransferService 
 
     @Value("${coar-notify.max-size-bytes:524288000}")
     private long maxSizeBytes;
+
+    @Value("${coar-notify.retry.max-attempts:5}")
+    private int retryMaxAttempts;
+
+    @Value("${coar-notify.retry.backoff-base-seconds:60}")
+    private long retryBackoffBaseSeconds;
+
+    @Value("${coar-notify.retry.ack-timeout-minutes:30}")
+    private long ackTimeoutMinutes;
 
 
     @Override
@@ -126,6 +141,46 @@ public class CoarNotifyTransferServiceImpl implements CoarNotifyTransferService 
         });
 
         return FileTransferConverter.toDTO(sendOffer(offer));
+    }
+
+    @Override
+    public int retryDueTransfers() {
+        var backoffBase = Duration.ofSeconds(retryBackoffBaseSeconds);
+        var ackTimeout = Duration.ofMinutes(ackTimeoutMinutes);
+        var dueTransferIds = fileTransferRepository.findAllForRetry(NOT_ACCEPTED, retryMaxAttempts)
+            .stream()
+            .filter(transfer -> TransferRetryPolicy.isDue(transfer, Instant.now(), retryMaxAttempts,
+                backoffBase, ackTimeout))
+            .map(FileTransfer::getId)
+            .toList();
+
+        var resent = 0;
+        for (var transferId : dueTransferIds) {
+            try {
+                var offer = transactionTemplate.execute(status -> {
+                    var transfer = findTransfer(transferId);
+                    // an answer may have arrived since the list was loaded
+                    if (!TransferRetryPolicy.isDue(transfer, Instant.now(), retryMaxAttempts,
+                        backoffBase, ackTimeout)) {
+                        return null;
+                    }
+
+                    log.info("Re-offering transfer {} (status {}, attempt {}).", transfer.getId(),
+                        transfer.getStatus(), transfer.getAttempts() + 1);
+                    var documentFile = transfer.getDocumentFile();
+                    transfer.setSha256(
+                        fileDigestService.sha256Base64(documentFile.getServerFilename()));
+                    return prepareOffer(transfer, documentFile);
+                });
+                if (Objects.nonNull(offer)) {
+                    sendOffer(offer);
+                    resent++;
+                }
+            } catch (RuntimeException e) {
+                log.error("Re-offering transfer {} failed.", transferId, e);
+            }
+        }
+        return resent;
     }
 
     @Override
@@ -204,9 +259,9 @@ public class CoarNotifyTransferServiceImpl implements CoarNotifyTransferService 
         headers.setContentType(MediaType.parseMediaType("application/ld+json"));
 
         try {
+            var request = new HttpEntity<>(offer.payload(), headers);
             var response = restTemplateProvider.provideRestTemplate()
-                .postForEntity(transfer.getTargetInbox(), new HttpEntity<>(offer.payload(), headers),
-                    String.class);
+                .postForEntity(transfer.getTargetInbox(), request, String.class);
             if (response.getStatusCode().is2xxSuccessful()) {
                 transfer.setStatus(FileTransferStatus.SENT);
             } else {
@@ -232,7 +287,8 @@ public class CoarNotifyTransferServiceImpl implements CoarNotifyTransferService 
 
     private FileTransfer findTransfer(Integer transferId) {
         return fileTransferRepository.findById(transferId)
-            .orElseThrow(() -> new NotFoundException("File transfer with given id does not exist."));
+            .orElseThrow(
+                () -> new NotFoundException("File transfer with given id does not exist."));
     }
 
     private String getLandingPage(DocumentFile documentFile) {

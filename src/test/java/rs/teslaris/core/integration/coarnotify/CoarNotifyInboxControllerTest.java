@@ -14,6 +14,8 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import rs.teslaris.core.integration.BaseTest;
 import rs.teslaris.core.model.coarnotify.FileTransfer;
 import rs.teslaris.core.model.coarnotify.FileTransferStatus;
@@ -49,6 +51,11 @@ public class CoarNotifyInboxControllerTest extends BaseTest {
     @Autowired
     private DatasetRepository datasetRepository;
 
+
+    @DynamicPropertySource
+    static void coarNotifyProperties(DynamicPropertyRegistry registry) {
+        registry.add("coar-notify.retry.enabled", () -> "false");
+    }
 
     @Test
     public void shouldAdvertiseLdJson() throws Exception {

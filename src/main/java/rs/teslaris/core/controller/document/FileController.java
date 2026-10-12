@@ -249,6 +249,8 @@ public class FileController {
         var file = fileService.loadAsResource(filename);
         var documentFile = documentFileService.getDocumentByServerFilename(filename);
         var headers = getFileHeaders(file, false, null);
+        headers.set(HttpHeaders.CONTENT_DISPOSITION,
+            StringUtil.contentDisposition(documentFile.getFilename()));
         headers.set("Repr-Digest", "sha-256=:" + authorisation.sha256() + ":");
         FairSignpostingL1Utility.addHeadersForDocumentFileItems(headers, documentFile);
 

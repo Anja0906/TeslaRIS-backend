@@ -15,12 +15,16 @@ public interface FileTransferRepository extends JpaRepository<FileTransfer, Inte
 
     Optional<FileTransfer> findByNotificationId(String notificationId);
 
-    @Query("SELECT t FROM FileTransfer t WHERE t.documentFile.id = :documentFileId ORDER BY t.id DESC")
+    @Query("SELECT t FROM FileTransfer t WHERE t.documentFile.id = :documentFileId " +
+        "ORDER BY t.id DESC")
     List<FileTransfer> findAllForDocumentFile(Integer documentFileId);
 
     @Query("SELECT t FROM FileTransfer t WHERE t.documentFile.serverFilename = :serverFilename " +
         "AND t.tokenExpiresAt = :tokenExpiresAt")
     List<FileTransfer> findAllForDownload(String serverFilename, Instant tokenExpiresAt);
+
+    @Query("SELECT t FROM FileTransfer t WHERE t.status IN :statuses AND t.attempts < :maxAttempts")
+    List<FileTransfer> findAllForRetry(Collection<FileTransferStatus> statuses, int maxAttempts);
 
     @Query("SELECT COUNT(t) > 0 FROM FileTransfer t WHERE t.documentFile.id = :documentFileId " +
         "AND t.targetInbox = :targetInbox AND t.status IN :statuses")

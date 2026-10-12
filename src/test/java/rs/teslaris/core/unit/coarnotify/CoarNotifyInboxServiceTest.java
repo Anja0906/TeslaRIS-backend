@@ -151,7 +151,8 @@ public class CoarNotifyInboxServiceTest {
             .thenReturn(true);
 
         // When
-        var result = coarNotifyInboxService.receiveNotification(createAccept("urn:uuid:ack-6"), "x");
+        var result =
+            coarNotifyInboxService.receiveNotification(createAccept("urn:uuid:ack-6"), "x");
 
         // Then
         assertEquals(HttpStatus.ACCEPTED, result.status());
@@ -165,7 +166,8 @@ public class CoarNotifyInboxServiceTest {
         transfer.setStatus(FileTransferStatus.REJECTED);
 
         // When
-        var result = coarNotifyInboxService.receiveNotification(createAccept("urn:uuid:ack-7"), "x");
+        var result =
+            coarNotifyInboxService.receiveNotification(createAccept("urn:uuid:ack-7"), "x");
 
         // Then
         assertEquals(HttpStatus.ACCEPTED, result.status());

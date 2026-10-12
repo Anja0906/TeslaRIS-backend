@@ -11,6 +11,8 @@ public interface CoarNotifyTransferService {
 
     FileTransferResponseDTO retryTransfer(Integer transferId);
 
+    int retryDueTransfers();
+
     FileTransferResponseDTO getTransfer(Integer transferId);
 
     List<FileTransferResponseDTO> getTransfersForDocumentFile(Integer documentFileId);

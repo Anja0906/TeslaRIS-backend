@@ -77,6 +77,7 @@ public class CoarNotifyTransferControllerTest extends BaseTest {
         registry.add("coar-notify.dspace.inbox",
             () -> "http://127.0.0.1:" + DSPACE_INBOX.getAddress().getPort() + "/server/ldn/inbox");
         registry.add("coar-notify.token.secret", () -> "integration-test-secret-0123456789ab");
+        registry.add("coar-notify.retry.enabled", () -> "false");
     }
 
     private static HttpServer startInbox() {
@@ -141,6 +142,8 @@ public class CoarNotifyTransferControllerTest extends BaseTest {
         var expectedDigest = Base64.getEncoder().encodeToString(
             MessageDigest.getInstance("SHA-256").digest(CONTENT));
         assertEquals("sha-256=:" + expectedDigest + ":", response.getHeader("Repr-Digest"));
+        assertTrue(response.getHeader(HttpHeaders.CONTENT_DISPOSITION)
+            .endsWith("filename*=UTF-8''coar-transfer-test.pdf"));
 
         var audited = fileTransferRepository.findById(transfer.path("id").asInt()).orElseThrow();
         assertNotNull(audited.getDownloadedAt());
@@ -201,7 +204,8 @@ public class CoarNotifyTransferControllerTest extends BaseTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\": \"" + email + "\", \"password\": \"" + password + "\"}"))
             .andExpect(status().isOk()).andReturn();
-        var token = mapper.readTree(result.getResponse().getContentAsString()).path("token").asText();
+        var token =
+            mapper.readTree(result.getResponse().getContentAsString()).path("token").asText();
         var fingerprint = result.getResponse().getCookie("jwt-security-fingerprint");
         return request -> {
             request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + token);

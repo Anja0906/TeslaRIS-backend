@@ -107,6 +107,9 @@ public class CoarNotifyTransferServiceTest {
         ReflectionTestUtils.setField(coarNotifyTransferService, "targetId", "http://localhost:4000");
         ReflectionTestUtils.setField(coarNotifyTransferService, "targetInbox", DSPACE_INBOX);
         ReflectionTestUtils.setField(coarNotifyTransferService, "tokenTtlMinutes", 60L);
+        ReflectionTestUtils.setField(coarNotifyTransferService, "retryMaxAttempts", 5);
+        ReflectionTestUtils.setField(coarNotifyTransferService, "retryBackoffBaseSeconds", 60L);
+        ReflectionTestUtils.setField(coarNotifyTransferService, "ackTimeoutMinutes", 30L);
         ReflectionTestUtils.setField(coarNotifyTransferService, "maxSizeBytes", 1000L);
         ReflectionTestUtils.setField(FairSignpostingL1Utility.class, "frontendUrl",
             "http://localhost:5173/");
@@ -130,16 +133,17 @@ public class CoarNotifyTransferServiceTest {
         lenient().when(documentFileService.findDocumentFileById(5)).thenReturn(documentFile);
         lenient().when(fileDigestService.sha256Base64("0f3c.pdf")).thenReturn(DIGEST);
         lenient().when(restTemplateProvider.provideRestTemplate()).thenReturn(restTemplate);
-        lenient().when(transactionTemplate.execute(any())).thenAnswer(
-            invocation -> ((TransactionCallback<?>) invocation.getArgument(0)).doInTransaction(null));
-        lenient().when(fileTransferRepository.save(any(FileTransfer.class))).thenAnswer(invocation -> {
-            FileTransfer transfer = invocation.getArgument(0);
-            if (Objects.isNull(transfer.getId())) {
-                transfer.setId(100 + savedTransfers.size());
-            }
-            savedTransfers.add(transfer);
-            return transfer;
-        });
+        lenient().when(transactionTemplate.execute(any())).thenAnswer(invocation ->
+            ((TransactionCallback<?>) invocation.getArgument(0)).doInTransaction(null));
+        lenient().when(fileTransferRepository.save(any(FileTransfer.class)))
+            .thenAnswer(invocation -> {
+                FileTransfer transfer = invocation.getArgument(0);
+                if (Objects.isNull(transfer.getId())) {
+                    transfer.setId(100 + savedTransfers.size());
+                }
+                savedTransfers.add(transfer);
+                return transfer;
+            });
     }
 
     @Test
@@ -327,6 +331,47 @@ public class CoarNotifyTransferServiceTest {
 
         // Then
         assertEquals(DownloadAuthorisation.Result.EXPIRED, result.result());
+    }
+
+    @Test
+    public void shouldReOfferOnlyDueTransfers() {
+        // Given
+        var hourAgo = Instant.now().minusSeconds(3600);
+        var failed = createTransfer(FileTransferStatus.FAILED, Instant.now());
+        failed.setId(1);
+        failed.setLastAttemptAt(hourAgo);
+        var fixableReject = createTransfer(FileTransferStatus.REJECTED, Instant.now());
+        fixableReject.setId(2);
+        fixableReject.setLastError("expired: item URL returned HTTP 410");
+        fixableReject.setLastAttemptAt(hourAgo);
+        var finalReject = createTransfer(FileTransferStatus.REJECTED, Instant.now());
+        finalReject.setId(3);
+        finalReject.setLastError("too-large: 900000000 bytes");
+        finalReject.setLastAttemptAt(hourAgo);
+        var recentlySent = createTransfer(FileTransferStatus.SENT, Instant.now());
+        recentlySent.setId(4);
+        recentlySent.setLastAttemptAt(Instant.now().minusSeconds(60));
+
+        var transfers = List.of(failed, fixableReject, finalReject, recentlySent);
+        when(fileTransferRepository.findAllForRetry(any(), eq(5))).thenReturn(transfers);
+        transfers.forEach(transfer ->
+            lenient().when(fileTransferRepository.findById(transfer.getId()))
+                .thenReturn(Optional.of(transfer)));
+        when(restTemplate.postForEntity(anyString(), any(), eq(String.class)))
+            .thenReturn(ResponseEntity.status(HttpStatus.ACCEPTED).build());
+
+        // When
+        var resent = coarNotifyTransferService.retryDueTransfers();
+
+        // Then
+        assertEquals(2, resent);
+        assertEquals(FileTransferStatus.SENT, failed.getStatus());
+        assertEquals(2, failed.getAttempts());
+        assertNotEquals("urn:uuid:test", failed.getNotificationId());
+        assertEquals(FileTransferStatus.SENT, fixableReject.getStatus());
+        assertNull(fixableReject.getLastError());
+        assertEquals(FileTransferStatus.REJECTED, finalReject.getStatus());
+        assertEquals(1, recentlySent.getAttempts());
     }
 
     private FileTransfer createTransfer(FileTransferStatus status, Instant expires) {
